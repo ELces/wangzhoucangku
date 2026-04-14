@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>旺州仓库 - 智能数据大屏 (V7 联动加强版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19; --card-bg: #151b2b; --border-color: #2a3441;
+            --text-main: #e2e8f0; --text-sub: #94a3b8; --accent: #00f2ff;
+            --danger: #ef4444; --success: #10b981; --th-bg: #1e2638; --input-bg: #0b0f19;
+        }
+        body.light-theme {
+            --bg-color: #f3f4f6; --card-bg: #ffffff; --border-color: #e5e7eb;
+            --text-main: #1f2937; --text-sub: #6b7280; --accent: #2563eb;
+            --th-bg: #f9fafb; --input-bg: #f9fafb;
+        }
+        body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); font-family: 'Segoe UI', system-ui, sans-serif; transition: background-color 0.3s, color 0.3s; overflow-x: hidden; }
+        * { box-sizing: border-box; }
+        
+        header { background: var(--card-bg); padding: 15px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; transition: all 0.3s; flex-wrap: wrap; gap: 15px; }
+        .title { font-size: 18px; font-weight: bold; color: var(--accent); letter-spacing: 1px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        
+        .btn { background: transparent; color: var(--accent); border: 1px solid var(--accent); padding: 8px 14px; border-radius: 4px; cursor: pointer; transition: all 0.3s; font-size: 13px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+        .btn:hover { background: rgba(0, 242, 255, 0.1); box-shadow: 0 0 10px rgba(0,242,255,0.2); }
+        body.light-theme .btn:hover { background: rgba(37, 99, 235, 0.1); box-shadow: none; }
+        .btn-danger { color: var(--danger); border-color: var(--danger); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.1); }
+        .btn-success { color: var(--success); border-color: var(--success); }
+        .btn-success:hover { background: rgba(16, 185, 129, 0.1); }
+
+        .container { padding: 15px; max-width: 1800px; margin: 0 auto; width: 100%; }
+        
+        .search-wrapper { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; background: var(--card-bg); padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .search-input { flex: 1; padding: 10px 15px; border-radius: 30px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); font-size: 14px; outline: none; width: 100%; }
+        .search-input:focus { border-color: var(--accent); }
+        .search-stats { color: var(--text-sub); font-size: 13px; white-space: nowrap; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: var(--card-bg); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 24px; font-weight: bold; color: var(--accent); margin-top: 8px; }
+        
+        .charts-wrapper { display: flex; gap: 15px; margin-bottom: 20px; height: 350px; width: 100%; }
+        .chart-box { flex: 1; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; min-width: 0; cursor: pointer; } 
+        
+        .table-section { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; }
+        .table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .table-wrapper { max-height: 550px; overflow-y: auto; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 4px; -webkit-overflow-scrolling: touch; }
+        
+        table { width: 100%; border-collapse: collapse; text-align: left; min-width: 800px; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-size: 14px; }
+        th { background: var(--th-bg); color: var(--text-sub); position: sticky; top: 0; z-index: 10; font-weight: 600; white-space: nowrap; }
+        
+        .highlight { background-color: rgba(255, 208, 0, 0.4); color: #fff; padding: 0 2px; border-radius: 2px; }
+        body.light-theme .highlight { background-color: rgba(255, 208, 0, 0.6); color: #000; }
+        td.editable:focus { background: rgba(0, 242, 255, 0.1); outline: 1px solid var(--accent); }
+        .admin-col { text-align: center; width: 60px; white-space: nowrap; }
+        .del-btn { color: var(--danger); cursor: pointer; text-decoration: underline; font-size: 13px; }
+        
+        #login-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal-content { background: var(--card-bg); border: 1px solid var(--accent); padding: 25px; border-radius: 8px; width: 100%; max-width: 320px; text-align: center; }
+        .modal-content input { width: 100%; padding: 12px; margin: 10px 0; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); box-sizing: border-box; border-radius: 4px; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 100px); background: var(--success); color: white; padding: 10px 20px; border-radius: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); opacity: 0; transition: all 0.3s; z-index: 9999; white-space: nowrap; font-size: 14px; }
+        .toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+        @media (max-width: 1024px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) {
+            header { flex-direction: column; align-items: flex-start; }
+            .header-controls { width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 5px; -webkit-overflow-scrolling: touch; }
+            .header-controls::-webkit-scrollbar { display: none; }
+            .search-wrapper { flex-direction: column; align-items: stretch; }
+            .search-stats { text-align: left; }
+            .charts-wrapper { flex-direction: column; height: auto; }
+            .chart-box { height: 300px; width: 100%; }
+            .table-header { flex-direction: column; align-items: flex-start; }
+            .table-header > div { width: 100%; display: flex; gap: 10px; }
+            .table-header .btn { flex: 1; justify-content: center; }
+        }
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .stat-card { padding: 12px; }
+            .title { font-size: 16px; }
+            .btn { padding: 6px 10px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="title">📦 旺州智能大屏 <span style="font-size: 11px; background: var(--accent); color: #000; padding: 2px 6px; border-radius: 10px; font-weight: bold;">v7.0 图表联动版</span></div>
+        <div class="header-controls">
+            <button class="btn" onclick="toggleTheme()" id="theme-btn">☀️ 浅色</button>
+            <button class="btn" onclick="exportToCSV()">📊 Excel</button>
+            <button class="btn" onclick="exportToMD()">📝 MD</button>
+            <span style="color: var(--border-color); display: none;">|</span>
+            <span id="user-status" style="color: var(--text-sub); font-size: 12px; white-space: nowrap;">访客模式 (只读)</span>
+            <button class="btn" id="login-btn" onclick="showLogin()">管理员</button>
+            <button class="btn btn-danger" id="logout-btn" style="display: none;" onclick="logout()">退出</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 搜索栏 -->
+        <div class="search-wrapper">
+            <span style="font-size: 18px;">🔍</span>
+            <input type="text" id="search-input" class="search-input" placeholder="输入物料名称、编码、分类等进行检索... (支持点击下方图表直接过滤)" oninput="handleSearch()">
+            <button class="btn" onclick="clearSearch()" style="border-color: var(--border-color); color: var(--text-sub);">✖ 重置</button>
+            <div class="search-stats" id="search-stats">显示: 0 项</div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div style="color: var(--text-sub); font-size: 13px;">检索结果总量</div>
+                <div class="stat-value" id="val-total">0</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-sub); font-size: 13px;">涉及分类数</div>
+                <div class="stat-value" id="val-cat">0</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-sub); font-size: 13px;">规格完善率</div>
+                <div class="stat-value" id="val-spec">0%</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: var(--text-sub); font-size: 13px;">备注填充率</div>
+                <div class="stat-value" id="val-remark">0%</div>
+            </div>
+        </div>
+
+        <div class="charts-wrapper">
+            <div class="chart-box" id="pie-chart" title="点击扇区可联动过滤表格数据"></div>
+            <div class="chart-box" id="bar-chart" title="点击柱子可联动过滤表格数据"></div>
+        </div>
+
+        <div class="table-section">
+            <div class="table-header">
+                <h3 style="margin: 0; font-size: 16px;">
+                    📝 数据台 <span id="edit-hint" style="font-size: 12px; color: var(--accent); display: none; font-weight: normal;">(✏️实时编辑中)</span>
+                </h3>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-success" id="save-btn" style="display: none;" onclick="forceSave()">💾 保存</button>
+                    <button class="btn" id="add-btn" style="display: none;" onclick="addRow()">+ 录入</button>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table id="data-table">
+                    <thead>
+                        <tr>
+                            <th>物料编码</th><th>分类</th><th>物料名称</th><th>规格/参数</th><th>备注</th>
+                            <th class="admin-col" style="display:none;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗 -->
+    <div id="login-modal">
+        <div class="modal-content">
+            <h3 style="margin-top: 0; color: var(--accent);">身份核验</h3>
+            <input type="text" id="username" placeholder="账号">
+            <input type="password" id="password" placeholder="密码">
+            <button class="btn" style="width: 100%; margin-top: 15px; justify-content: center;" onclick="verifyLogin()">确 认</button>
+            <div id="login-err" style="color: var(--danger); font-size: 12px; margin-top: 10px; display: none;">账号或密码不匹配</div>
+            <button class="btn" style="width: 100%; margin-top: 10px; border-color: var(--text-sub); color: var(--text-sub); justify-content: center;" onclick="hideLogin()">取 消</button>
+        </div>
+    </div>
+
+    <div class="toast" id="sys-toast">数据操作成功</div>
+
+    <script>
+        const STORAGE_KEY = 'WANGZHOU_WAREHOUSE_DATA_V7';
+        const originalData = [["WZ-EL-001","电气件","12V 开关电源带线","短射灯线300mm（母）;长射灯线700mm（母）",""],["WZ-EL-002","电气件","LED灯","1组每组8个灯珠，黄蓝 32cm",""],["WZ-EL-003","电气件","LED灯","每根长328*22mm，红黄蓝（加电阻）",""],["WZ-EL-004","电气件","LED灯","每根长480*28mm，十色，13灯珠（注：新的）",""],["WZ-EL-005","电气件","LED灯","反光片灯 黄蓝328*22mm 8灯珠",""],["WZ-EL-006","电气件","LED灯","每根长530*28mm，十色，13灯珠（注：新的）",""],["WZ-EL-007","电气件","LED灯","每根长550*28mm，十色，13灯珠（注：新的）",""],["WZ-EL-008","电气件","LED灯","每组8个灯珠，黄蓝",""],["WZ-EL-009","电气件","LED灯","黄蓝.558*22一根",""],["WZ-EL-010","电气件","LED灯","每根长405*28mm，十色，13灯珠（注：新的）",""],["WZ-EL-011","电气件","LED灯","反光片灯 黄 蓝330*22mm 8灯珠",""],["WZ-EL-012","电气件","LED灯","3色，4组，每组10个灯珠，330*25mm",""],["WZ-EL-013","电气件","LED灯","每根长510*28mm，十色，13灯珠（注：新的）",""],["WZ-EL-014","电气件","LED灯 三色（红黄蓝）","328*22mm两根",""],["WZ-EL-015","电气件","LED灯 三色（红黄蓝）","410*22mm三根",""],["WZ-EL-016","电气件","LED灯 加电阻","12色红黄蓝绿，2组，每组13个灯珠，330*29mm",""],["WZ-EL-017","电气件","LED灯 加电阻","12色红黄蓝绿，3组，每组13个灯珠，405*29mm",""],["WZ-EL-018","电气件","LED灯（碳床灯）","长650*28mm，十色，13灯珠（注：新的）",""],["WZ-EL-019","电气件","WFI模块","",""],["WZ-EL-020","电气件","wifi 模块","003-1BVW-2",""],["WZ-EL-021","电气件","wifi模块","WZ010B7W",""],["WZ-EL-022","电气件","一进一出插件（内部导线）","","欧骏电子(供应商）"],["WZ-EL-023","电气件","七芯线","线长1200mm",""],["WZ-EL-024","电气件","七芯线","线长900mm",""],["WZ-EL-025","电气件","三芯电源线/根（随订单）不带插头外露1.5米","黑线、白线剥：12mm",""],["WZ-EL-026","电气件","三芯电源线英式（外露1.5米10A）","黑线、白线剥：12mm",""],["WZ-EL-027","电气件","三芯线","第一根64cm 后两根54cm",""],["WZ-EL-028","电气件","三芯线","64cm",""],["WZ-EL-029","电气件","三芯线","一根64cm",""],["WZ-EL-030","电气件","三芯线","850mm","接收头"],["WZ-EL-031","电气件","三芯线","800mm","按键"],["WZ-EL-032","电气件","三芯线","300mm",""],["WZ-EL-033","电气件","三芯线","第一根64cm 后1根54cm",""],["WZ-EL-034","电气件","三芯线","第一根64cm 后根54cm",""],["WZ-EL-035","电气件","三芯线","第一根64cm",""],["WZ-EL-036","电气件","三芯线","650mm",""],["WZ-EL-037","电气件","两芯线","1000mm","（喇叭线）"],["WZ-EL-038","电气件","主板","003-1BVW-2",""],["WZ-EL-039","电气件","二芯线","","490mm上顶灯，730mm装饰板灯"],["WZ-EL-040","电气件","二芯线","600mm","单头焊喇叭"],["WZ-EL-041","电气件","五芯线","一根70cm",""],["WZ-EL-042","电气件","五芯线","","显示器用 35cm"],["WZ-EL-043","电气件","五芯线","","LED的线650mm 1根"],["WZ-EL-044","电气件","五芯线","","LED的线100mm 2根"],["WZ-EL-045","电气件","五芯线","","LED的线150mm 2根 ；1200mm 1根（一正一反 ）"],["WZ-EL-046","电气件","五芯线","","LED的线150mm 1根 ；1200mm 1根（一正一反 ）"],["WZ-EL-047","电气件","五芯线","1200mm","1根（一正一反 ）"],["WZ-EL-048","电气件","五芯线","25cm",""],["WZ-EL-049","电气件","五芯线","","显示器用 25cm"],["WZ-EL-050","电气件","五芯线","","LED的线150mm 1根 ；800mm 1根（一正一反 ）"],["WZ-EL-051","电气件","五芯线","1根64cm,1根15cm",""],["WZ-EL-052","电气件","五芯线","1根64cm，2根15cm",""],["WZ-EL-053","电气件","五芯线","","LED的线150mm 2根 ；800mm 1根（一正一反 ）"],["WZ-EL-054","电气件","六芯线","一根70cm",""],["WZ-EL-055","电气件","六芯线","250mm","按键"],["WZ-EL-056","电气件","六芯线","500mm","显示器"],["WZ-EL-057","电气件","六芯线","355mm","按键"],["WZ-EL-058","电气件","六芯线","二根90cm",""],["WZ-EL-059","电气件","六芯线","300mm","按键使用"],["WZ-EL-060","电气件","六芯线","","350mm（按键/显示器线）"],["WZ-EL-061","电气件","六芯线","","显示屏450mm/按键750mm"],["WZ-EL-062","电气件","六芯线","","显示器线50CM"],["WZ-EL-063","电气件","六芯线","30cm","按键线"],["WZ-EL-064","电气件","六芯线","","显示屏75CM/按键30cm，"],["WZ-EL-065","电气件","内部导线/套","硅胶线 黑白",""],["WZ-EL-066","电气件","内部导线/套","硅胶线 黑/红/蓝",""],["WZ-EL-067","电气件","内部导线/套","硅胶线 红蓝",""],["WZ-EL-068","电气件","内部导线/套","硅胶线 黑白 +编织线",""],["WZ-EL-069","电气件","单线一进一出插件（内部导线）","","欧骏电子（OJ-262）"],["WZ-EL-070","电气件","发热体/只","230V 1780W，205*45mm","手动热保95℃"],["WZ-EL-071","电气件","发热体/只","手动热保95℃ 230V 1860W 207*45mm",""],["WZ-EL-072","电气件","发热体/只","1405W","手动热保95℃"],["WZ-EL-073","电气件","发热体/只","1900W","手动热保95℃230V"],["WZ-EL-074","电气件","发热体/只","220V 1900W","手动热保95℃"],["WZ-EL-075","电气件","发热体/只","220V1780W","手动热保95℃ 一档"],["WZ-EL-076","电气件","发热体/只","230V 1760W","手动热保95℃"],["WZ-EL-077","电气件","发热体/只","230V 1780W，205*45mm","手动热保95℃"],["WZ-EL-078","电气件","发热体/只","230V 1900W","手动热保95℃"],["WZ-EL-079","电气件","发热体/只","230V1780W","手动热保95℃ 一档"],["WZ-EL-080","电气件","发热体/只(黑灰色）","230V 1780W，207*45mm","手动热保95℃，一档"],["WZ-EL-081","电气件","发热体/只","120V 1450W","手动热保95℃"],["WZ-EL-082","电气件","发热体风机/只","220V 50HZ，Y518",""],["WZ-EL-083","电气件","发热体风机/只","220V 50HZ，48187-Y70227（一根长200一根长400）",""],["WZ-EL-084","电气件","发热体风机/只","220V 50HZ 12W，300*30mm Y5267",""],["WZ-EL-085","电气件","发热体风机/只","220V 50HZ 12W，加长风机（A5245GL004A风机）",""],["WZ-EL-086","电气件","发热体风机/只","220V 50HZ 12W，365*50mm Y5267",""],["WZ-EL-087","电气件","发热体风机/只","120V，300*30mm Y5274",""],["WZ-EL-088","电气件","同步电机","120V/CCW",""],["WZ-EL-089","电气件","同步电机","CCW 220V 带电容",""],["WZ-EL-090","电气件","喇叭","0.5W8Ω",""],["WZ-EL-091","电气件","喇叭底座","",""],["WZ-EL-092","电气件","喇叭木块","",""],["WZ-EL-093","电气件","四芯线","200mm","WiFi连接线"],["WZ-EL-094","电气件","四芯线","","RGB灯线，一头端子，一头剥线烫锡，400mm"],["WZ-EL-095","电气件","四芯线","","LED的线450mm 1根（一正一反） ；900mm 1根（一正 一反）"],["WZ-EL-096","电气件","四芯线","900mm","1根（一正一反 ）"],["WZ-EL-097","电气件","四芯线","450mm","3根，一正一反"],["WZ-EL-098","电气件","四芯线","","顶灯线长400mm"],["WZ-EL-099","电气件","四芯线","400mm",""],["WZ-EL-100","电气件","四芯线","","LED灯用（640mm)"],["WZ-EL-101","电气件","四芯线","3根64cm",""],["WZ-EL-102","电气件","四芯线","450mm 3根；750mm 1 根",""],["WZ-EL-103","电气件","四芯线炭灯用","","710mm（双正）"],["WZ-EL-104","电气件","四芯线炭灯用","","110MM（双正）"],["WZ-EL-105","电气件","四芯线（wifi模块线）","120mm",""],["WZ-EL-106","电气件","四芯线（wifi模块线）","300mm",""],["WZ-EL-107","电气件","四芯线（wifi模块线）","100mm",""],["WZ-EL-108","电气件","射灯","4000k，线长600mm",""],["WZ-EL-109","电气件","射灯引出线","一根长600mm带端子（公）；1根长600mm带端子（公）",""],["WZ-EL-110","电气件","射灯线","一根600MM一根1000MM母线",""],["WZ-EL-111","电气件","射灯线","短射灯线300mm;长射灯线900mm",""],["WZ-EL-112","电气件","开关","O/I",""],["WZ-EL-113","电气件","弹簧","","显示屏用"],["WZ-EL-114","电气件","弹簧护罩","105*39mm",""],["WZ-EL-115","电气件","快插件/只","",""],["WZ-EL-116","电气件","快插护线套/只","",""],["WZ-EL-117","电气件","感温探头","200mm",""],["WZ-EL-118","电气件","感温探头","800mm",""],["WZ-EL-119","电气件","感温探头","1000mm",""],["WZ-EL-120","电气件","感温探头","640mm",""],["WZ-EL-121","电气件","感温探头","650mm",""],["WZ-EL-122","电气件","感温探头","长度620mm",""],["WZ-EL-123","电气件","护线圈","7*9mm",""],["WZ-EL-124","电气件","护线圈","12mm",""],["WZ-EL-125","电气件","按键板","007新版本",""],["WZ-EL-126","电气件","按键盒","新（开模）",""],["WZ-EL-127","电气件","接地标识","",""],["WZ-EL-128","电气件","接收头","",""],["WZ-EL-129","电气件","接收头三芯线","","500MM双正"],["WZ-EL-130","电气件","接收头三芯线","","1700mm双正"],["WZ-EL-131","电气件","接收头三芯线","1300mm",""],["WZ-EL-132","电气件","显示屏","房车",""],["WZ-EL-133","电气件","显示屏","周定时",""],["WZ-EL-134","电气件","欧式三芯电源线/根 不带插头 外露1.5米","棕线剥：12mm 蓝线剥：12mm",""],["WZ-EL-135","电气件","欧式三芯电源线外露1.5米","黑线剥：12mm 白线剥：12mm",""],["WZ-EL-136","电气件","火焰灯","每根长480*29mm，十色，13灯珠（注：新的）",""],["WZ-EL-137","电气件","火焰灯","410mm*22mm，红蓝黄",""],["WZ-EL-138","电气件","火焰灯线","200mm","正反接"],["WZ-EL-139","电气件","炭灯四芯线","150mm",""],["WZ-EL-140","电气件","炭灯四芯线","500mm","引出线至主板，一端大头一端小头"],["WZ-EL-141","电气件","电源线插头护套","",""],["WZ-EL-142","电气件","碳床灯","450*15mm",""],["WZ-EL-143","电气件","碳床灯","","顶灯RGB软灯带长：750mm"],["WZ-EL-144","电气件","碳床灯","","顶灯RGB软灯带长：1450mm"],["WZ-EL-145","电气件","碳床灯","","顶灯带长：1550mm"],["WZ-EL-146","电气件","碳床灯","","顶灯RGB软灯带长：950mm"],["WZ-EL-147","电气件","碳床灯","","顶灯RGB软灯带长：1100mm"],["WZ-EL-148","电气件","碳火灯","四颗灯珠 32cm",""],["WZ-EL-149","电气件","美式三芯DNT(长度230cm)黑色SJT-R","黑线、白线剥：12mm",""],["WZ-EL-150","电气件","美式三芯DNT-03A弯插头(长度80cm)黑色SJT-R","黑线、白线剥：12mm",""],["WZ-EL-151","电气件","英式三芯电源线（10A）外露1.5米","黑线剥：12mm 白线剥：12mm",""],["WZ-EL-152","电气件","触摸按键","","触摸屛用"],["WZ-EL-153","电气件","触摸按键支架","纳尔多，塑料",""],["WZ-EL-154","电气件","触摸按键板","",""],["WZ-EL-155","电气件","转轴护线圈","内径∅7",""],["WZ-EL-156","电气件","遥控主板","",""],["WZ-EL-157","电气件","遥控器","",""],["WZ-EL-158","电气件","顶灯四芯线","","RGB灯线，一头端子，一头剥线烫锡，400mm"],["WZ-EL-159","电气件","顶灯四芯线","1200mm","一端大头一端小头"],["WZ-EL-160","电气件","风机","65型 Y2538S1 亨成",""],["WZ-EL-161","电气件","风机","220V Y518",""],["WZ-EL-162","电气件","风机","003A /Y2538S1",""],["WZ-EL-163","电气件","风机","YJF55/13 AC 230V 50HZ 65型 Y518",""],["WZ-EL-164","电气件","风机","60加长型 （252*75mm）220V Y5276 (004A)",""],["WZ-ME-001","机械件","2号脚","",""],["WZ-ME-002","机械件","80支撑脚","",""],["WZ-ME-003","机械件","80脚","","橡胶"],["WZ-ME-004","机械件","PS板","1490*283.50*1.3mm",""],["WZ-ME-005","机械件","PS板","792*288",""],["WZ-ME-006","机械件","PS板","1526*328*1.3",""],["WZ-ME-007","机械件","PS板","1496*327",""],["WZ-ME-008","机械件","PS板","625*228*1.3mm",""],["WZ-ME-009","机械件","PS板","1750*327",""],["WZ-ME-010","机械件","PS板","496*439*1.3",""],["WZ-ME-011","机械件","PS板","988*327",""],["WZ-ME-012","机械件","PS板","1243*327",""],["WZ-ME-013","机械件","PS板","734*590",""],["WZ-ME-014","机械件","PS板","927*337",""],["WZ-ME-015","机械件","PS板","928*230*1.3mm",""],["WZ-ME-016","机械件","PS板","1115*327",""],["WZ-ME-017","机械件","PS板","496*490*1.3",""],["WZ-ME-018","机械件","PS板","1232*328*1.3",""],["WZ-ME-019","机械件","PS板/片","458*201*1.3mm",""],["WZ-ME-020","机械件","PVC板 /片","362*429mm",""],["WZ-ME-021","机械件","PVC板 /片","1108*271*1.3mm",""],["WZ-ME-022","机械件","PVC板 /片","271*651mm",""],["WZ-ME-023","机械件","PVC板 /片","800*270 36寸",""],["WZ-ME-024","机械件","PVC板 /片","1108*271",""],["WZ-ME-025","机械件","PVC板 /片","1413*271*1.3mm",""],["WZ-ME-026","机械件","PVC板 /片","284*1287*1.3mm",""],["WZ-ME-027","机械件","PVC板 /片","803*271",""],["WZ-ME-028","机械件","PVC板 /片","271*1413*1.3mm",""],["WZ-ME-029","机械件","下沿条","",""],["WZ-ME-030","机械件","两侧玻璃","阳光镀膜 268*200*5mm",""],["WZ-ME-031","机械件","两侧玻璃","阳光镀膜 256*200*5mm",""],["WZ-ME-032","机械件","前面玻璃","1508*326",""],["WZ-ME-033","机械件","前面玻璃","1763*326",""],["WZ-ME-034","机械件","前面玻璃","480*405*5",""],["WZ-ME-035","机械件","前面玻璃","1255*326",""],["WZ-ME-036","机械件","前面玻璃","1001*326",""],["WZ-ME-037","机械件","前面玻璃","746*587",""],["WZ-ME-038","机械件","前面玻璃","1508*329",""],["WZ-ME-039","机械件","前面玻璃","1128*326",""],["WZ-ME-040","机械件","前面玻璃","480*456*5",""],["WZ-ME-041","机械件","加热箱","",""],["WZ-ME-042","机械件","加热箱前板","",""],["WZ-ME-043","机械件","卡 簧","",""],["WZ-ME-044","机械件","双面胶4mm","","适量"],["WZ-ME-045","机械件","反光片尾部护圈","橡胶 内孔3mm",""],["WZ-ME-046","机械件","反光轴","4*824mm",""],["WZ-ME-047","机械件","反光轴","玻璃纤维管 φ4*1424mm",""],["WZ-ME-048","机械件","反光轴","290mm，一头15mm,一头30mm",""],["WZ-ME-049","机械件","反光轴","4*370mm，一头70mm,一头30mm",""],["WZ-ME-050","机械件","反光轴","1450 * ∅4",""],["WZ-ME-051","机械件","反光轴","1460*φ6",""],["WZ-ME-052","机械件","反光轴","铁丝4*545mm，一头10mm,一头30mm",""],["WZ-ME-053","机械件","反光轴","1710*φ4",""],["WZ-ME-054","机械件","反光轴","949*φ4",""],["WZ-ME-055","机械件","反光轴","697*φ4",""],["WZ-ME-056","机械件","反光轴","4*1027mm",""],["WZ-ME-057","机械件","反光轴","4*570",""],["WZ-ME-058","机械件","反光轴","Φ4*720mm 36寸",""],["WZ-ME-059","机械件","反光轴","Φ4*1040mm",""],["WZ-ME-060","机械件","反光轴","玻璃纤维管 φ4*1330mm",""],["WZ-ME-061","机械件","反光轴","295mm，一头15mm,一头30mm",""],["WZ-ME-062","机械件","反光轴","842*φ4（反光轴两端开始61mm处放反光片)",""],["WZ-ME-063","机械件","反光轴","铁丝4*850mm，一头65mm,一头30mm",""],["WZ-ME-064","机械件","反光轴","玻璃纤维管 φ4*1220mm",""],["WZ-ME-065","机械件","反光轴","1076*φ4",""],["WZ-ME-066","机械件","反光轴","1156 * ∅4",""],["WZ-ME-067","机械件","反光轴尾部固定圈","橡胶 内孔3mm",""],["WZ-ME-068","机械件","后盖","","喷塑"],["WZ-ME-069","机械件","吸盘","装卸玻璃吸盘",""],["WZ-ME-070","机械件","哑光黑贴纸","886*306mm",""],["WZ-ME-071","机械件","固定反光轴","",""],["WZ-ME-072","机械件","塑料下垫板","","喷塑"],["WZ-ME-073","机械件","塑料板支架","","喷塑"],["WZ-ME-074","机械件","墙面安装板","","喷塑"],["WZ-ME-075","机械件","墙面安装板（铁）","",""],["WZ-ME-076","机械件","外箱","","外箱加配件盒"],["WZ-ME-077","机械件","工艺孔盖","开孔直径9mm",""],["WZ-ME-078","机械件","左右侧玻璃","495*216*5",""],["WZ-ME-079","机械件","底座","","喷塑"],["WZ-ME-080","机械件","弹簧","弹簧直径5.5高15",""],["WZ-ME-081","机械件","弹簧保护罩","105*39mm",""],["WZ-ME-082","机械件","护套","",""],["WZ-ME-083","机械件","挂墙板","",""],["WZ-ME-084","机械件","按键支架","","触摸支架"],["WZ-ME-085","机械件","按键支架","","塑料"],["WZ-ME-086","机械件","按键板","4键",""],["WZ-ME-087","机械件","挡玻璃珍珠棉","70G",""],["WZ-ME-088","机械件","插件","",""],["WZ-ME-089","机械件","插片","",""],["WZ-ME-090","机械件","支座","",""],["WZ-ME-091","机械件","支撑片","",""],["WZ-ME-092","机械件","文化石背景","",""],["WZ-ME-093","机械件","无痕胶带","",""],["WZ-ME-094","机械件","木架","","亮白"],["WZ-ME-095","机械件","木架","","亮黑"],["WZ-ME-096","机械件","木架压板","",""],["WZ-ME-097","机械件","木架固定条","",""],["WZ-ME-098","机械件","木架铬铁","",""],["WZ-ME-099","机械件","棕色玻璃石","2.5kg",""],["WZ-ME-100","机械件","橡胶轴","3*5mm",""],["WZ-ME-101","机械件","橡胶轴","3*2mm",""],["WZ-ME-102","机械件","法兰","",""],["WZ-ME-103","机械件","海绵条","404*7*6.5mm",""],["WZ-ME-104","机械件","海绵条","448*7*6.5mm",""],["WZ-ME-105","机械件","炭火底座","PVC，463*82*2mm",""],["WZ-ME-106","机械件","炭火底座","PVC白色，1490*55*2mm",""],["WZ-ME-107","机械件","炭火底座","PVC，628*118*2mm",""],["WZ-ME-108","机械件","炭火底座","PVC935*117*2mm",""],["WZ-ME-109","机械件","炭火底座","PVC，41*1285*2mm",""],["WZ-ME-110","机械件","炭火底座","PVC，55*1412*2mm",""],["WZ-ME-111","机械件","炭灯","410mm* 15mm",""],["WZ-ME-112","机械件","炭灯","450mm* 15mm",""],["WZ-ME-113","机械件","烟囱","黑色（长55）",""],["WZ-ME-114","机械件","烟灰色玻璃","429*207*5",""],["WZ-ME-115","机械件","烟灰色玻璃","207*480*5",""],["WZ-ME-116","机械件","热塑管","∅3mm",""],["WZ-ME-117","机械件","玻璃","226*158mm",""],["WZ-ME-118","机械件","玻璃","629*228*5mm",""],["WZ-ME-119","机械件","玻璃","928*232*4mm镀膜",""],["WZ-ME-120","机械件","玻璃钢炭火","","玻璃钢炭火50*362*6mm"],["WZ-ME-121","机械件","珍珠棉","",""],["WZ-ME-122","机械件","电容","","小的"],["WZ-ME-123","机械件","石头","","石头"],["WZ-ME-124","机械件","碳床板（两面黑PC板）","","1748×122（两端居中16×5 固定孔槽）"],["WZ-ME-125","机械件","碳床板（两面黑：一面亚光黑；一面亮黑）","","996×182（两端居中16×5 固定孔槽）"],["WZ-ME-126","机械件","碳床板（两面黑：一面亚光黑；一面亮黑）","","986×122（两端居中16×5 固定孔槽）"],["WZ-ME-127","机械件","碳床板（两面黑：一面亚光黑；一面亮黑）","","734×122（两端居中16×5 固定孔槽）"],["WZ-ME-128","机械件","碳床板（两面黑：一面亚光黑；一面亮黑）","","1113×122（两端居中16×5 固定孔槽）"],["WZ-ME-129","机械件","碳床板（闪银板）","","1494×122（两端居中16×5 固定孔槽）"],["WZ-ME-130","机械件","碳床板（闪银板）","","1240×122（两端居中16×5 固定孔槽）"],["WZ-ME-131","机械件","碳床板（闪银板）","","1748×122（两端居中16×5 固定孔槽）"],["WZ-ME-132","机械件","碳床板（黑板）","707*86",""],["WZ-ME-133","机械件","碳床板（黑）","","1494×122（两端居中16×5 固定孔槽）"],["WZ-ME-134","机械件","纸箱","长（宽）*深*高",""],["WZ-ME-135","机械件","线 扣","",""],["WZ-ME-136","机械件","绒布","500*410",""],["WZ-ME-137","机械件","绒布","500*600",""],["WZ-ME-138","机械件","脚","纳尔多，塑料",""],["WZ-ME-139","机械件","茶色镀膜玻璃/片","330*125",""],["WZ-ME-140","机械件","茶色镀膜玻璃/片","592*125",""],["WZ-ME-141","机械件","装石头的箱","",""],["WZ-ME-142","机械件","装饰板","黑色瓦楞板",""],["WZ-ME-143","机械件","装饰板压板","",""],["WZ-ME-144","机械件","调整脚","XL-A-B003--m6*13*35",""],["WZ-ME-145","机械件","轧带","10*1500mm",""],["WZ-ME-146","机械件","转轴托架","","喷塑"],["WZ-ME-147","机械件","钢化玻璃/片","1490*353*5mm",""],["WZ-ME-148","机械件","钢化玻璃/片","457*609mm",""],["WZ-ME-149","机械件","钢化玻璃/片","450*757mm",""],["WZ-ME-150","机械件","钢化玻璃/片","450*1270*5mm",""],["WZ-ME-151","机械件","钢化玻璃/片","1524*450mm",""],["WZ-ME-152","机械件","钢化玻璃/片","450*914.4*5mm",""],["WZ-ME-153","机械件","铁制件","",""],["WZ-ME-154","机械件","镀膜玻璃","792*288",""],["WZ-ME-155","机械件","镀膜玻璃","1526*328*4",""],["WZ-ME-156","机械件","镀膜玻璃","1496*327",""],["WZ-ME-157","机械件","镀膜玻璃","1750*327",""],["WZ-ME-158","机械件","镀膜玻璃","1243*327",""],["WZ-ME-159","机械件","镀膜玻璃","927*337",""],["WZ-ME-160","机械件","镀膜玻璃","1232*328*4",""],["WZ-ME-161","机械件","镀膜钢化玻璃","988*327",""],["WZ-ME-162","机械件","镀膜钢化玻璃","734*590",""],["WZ-ME-163","机械件","镀膜钢化玻璃","1115*327",""],["WZ-ME-164","机械件","镜面玻璃","496*439*4",""],["WZ-ME-165","机械件","镜面玻璃","496*490*4",""],["WZ-ME-166","机械件","顶灯","","顶灯RGB软灯带长：1400mm"],["WZ-ME-167","机械件","顶灯","","顶灯RGB软灯带长：600mm"],["WZ-ME-168","机械件","顶灯","灯带RGB长：700mm",""],["WZ-ME-169","机械件","顶灯线","","顶灯线400mm"],["WZ-FA-001","紧固件","13MM塑料垫圈/只","","塑 料"],["WZ-FA-002","紧固件","2.4*7抽芯铆钉","",""],["WZ-FA-003","紧固件","2MM垫圈","",""],["WZ-FA-004","紧固件","2MM橡胶垫片","","反光片灯用"],["WZ-FA-005","紧固件","3*10大扁头自攻/只","","固定触摸支架"],["WZ-FA-006","紧固件","3MM橡胶垫片","","反光片灯用"],["WZ-FA-007","紧固件","4*10元机镀锌自攻/只","","固定LED灯"],["WZ-FA-008","紧固件","4*10大扁头自攻/只","",""],["WZ-FA-009","紧固件","4*10大扁头自攻/只","黑色大扁头",""],["WZ-FA-010","紧固件","4*10大扁头自攻/只","","无尖镀锌大扁头固定水晶石"],["WZ-FA-011","紧固件","4*16圆机螺丝","","支撑脚用"],["WZ-FA-012","紧固件","4*16大扁头自攻/只","","固定玻璃"],["WZ-FA-013","紧固件","4*16大扁头自攻/只方孔","","固定玻璃"],["WZ-FA-014","紧固件","4*17自攻螺丝","","固定木架"],["WZ-FA-015","紧固件","4*17镀锌自攻/只","","固定木架"],["WZ-FA-016","紧固件","4*20镀锌自攻/只","",""],["WZ-FA-017","紧固件","4*25螺杆","","主板用（黑色）"],["WZ-FA-018","紧固件","4*25镀锌自攻","",""],["WZ-FA-019","紧固件","4*25镀锌自攻螺丝/只","","平头主板用"],["WZ-FA-020","紧固件","4*25镀锌螺杆/只","","平头 主板用 黑"],["WZ-FA-021","紧固件","4*25长螺杆","",""],["WZ-FA-022","紧固件","4*35带垫螺杆/只","",""],["WZ-FA-023","紧固件","4*8元机镀锌自攻/只","","固定同步电机"],["WZ-FA-024","紧固件","4*8大扁头自攻/只","黑色大扁头",""],["WZ-FA-025","紧固件","4*8大扁头自攻/只","镀锌大扁头",""],["WZ-FA-026","紧固件","4*8铜螺杆/只","圆头、铜质",""],["WZ-FA-027","紧固件","4*8镀锌自攻/只","",""],["WZ-FA-028","紧固件","4.8*16大扁头方孔","","四号自封袋"],["WZ-FA-029","紧固件","4.8*16大扁头自攻/只","","四号自封袋/配件"],["WZ-FA-030","紧固件","4.8*16大扁头自攻/只","",""],["WZ-FA-031","紧固件","4.8*16大扁头自攻/只（内方头）","","四号自封袋"],["WZ-FA-032","紧固件","5*10大扁头自攻/只","黑色大扁头",""],["WZ-FA-033","紧固件","5*40平头镀锌自攻","","四号自封袋、配件"],["WZ-FA-034","紧固件","5*40平头镀锌自攻","",""],["WZ-FA-035","紧固件","LED垫片","",""],["WZ-FA-036","紧固件","M4*16大扁头自攻/只","","内方头，固定玻璃"],["WZ-FA-037","紧固件","M4带齿垫片","",""],["WZ-FA-038","紧固件","M4螺杆","M4*25","主板使用"],["WZ-FA-039","紧固件","M4螺母","M4","主板使用"],["WZ-FA-040","紧固件","M4铜螺母/只","铜质",""],["WZ-FA-041","紧固件","M6拉铆螺母","M6拉铆螺母",""],["WZ-FA-042","紧固件","R型线 卡","",""],["WZ-FA-043","紧固件","wifi 塑料固定件","∅2孔隔离柱，M2*10",""],["WZ-FA-044","紧固件","Φ3压线帽/只","","尼龙"],["WZ-FA-045","紧固件","Φ4垫圈/只","",""],["WZ-FA-046","紧固件","Φ4带齿垫圈/只","",""],["WZ-FA-047","紧固件","Φ6压线帽/只","","尼龙"],["WZ-FA-048","紧固件","Φ6平垫片","",""],["WZ-FA-049","紧固件","∅6垫片","","配件"],["WZ-FA-050","紧固件","∅6垫片","",""],["WZ-FA-051","紧固件","六角螺杆","M4*8",""],["WZ-FA-052","紧固件","六角螺母","M4黑色",""],["WZ-FA-053","紧固件","六角隔离柱","M4*13黑色，尼龙材质黑色",""],["WZ-FA-054","紧固件","六角隔离柱 塑料","M4*13","主板使用"],["WZ-FA-055","紧固件","单通通尼龙M2*10+5隔离柱","塑料，WFI模块用",""],["WZ-FA-056","紧固件","卡扣","",""],["WZ-FA-057","紧固件","卡簧","","常规"],["WZ-FA-058","紧固件","双通尼龙M2*6隔离柱","塑料，WFI模块用",""],["WZ-FA-059","紧固件","发黑螺钉","",""],["WZ-FA-060","紧固件","固定按键","M3*12圆机黑色螺丝",""],["WZ-FA-061","紧固件","固定木架的镀锌锥形螺钉","",""],["WZ-FA-062","紧固件","固定螺钉 配件","5*40自攻5颗，大膨胀管5颗",""],["WZ-FA-063","紧固件","固定螺钉/大膨胀管","","5*40mm（配件）"],["WZ-FA-064","紧固件","圆形线扣","外观圆形6P1",""],["WZ-FA-065","紧固件","圆形线扣","外观圆形（新） 6N-4",""],["WZ-FA-066","紧固件","圆机螺丝（锌白色）","M4*8","固定电机"],["WZ-FA-067","紧固件","圆机螺丝（锌白色）","M4*10","火焰灯/炭灯"],["WZ-FA-068","紧固件","圆机螺丝（黑）","M3*12","固定按键板"],["WZ-FA-069","紧固件","圆机螺丝（黑）","M3*8","固定接收头"],["WZ-FA-070","紧固件","垫圈","","反光轴尾部用"],["WZ-FA-071","紧固件","垫片","∅6垫片",""],["WZ-FA-072","紧固件","垫片￠2mm","",""],["WZ-FA-073","紧固件","塑料垫圈/只","",""],["WZ-FA-074","紧固件","塑料螺杆","","M4*12黑色固定火焰灯"],["WZ-FA-075","紧固件","塑料螺母","M4黑色",""],["WZ-FA-076","紧固件","大扁头自攻/只","黑色大扁头4*8",""],["WZ-FA-077","紧固件","大扁头螺丝","∅5*10",""],["WZ-FA-078","紧固件","大扁头螺丝","","∅5×10  配件"],["WZ-FA-079","紧固件","大膨胀管","","四号自封袋   配件"],["WZ-FA-080","紧固件","平头螺钉","4*14mm",""],["WZ-FA-081","紧固件","平头长螺丝","∅5*40",""],["WZ-FA-082","紧固件","平头长螺钉","","5×40配件"],["WZ-FA-083","紧固件","弹簧垫圈","Φ4",""],["WZ-FA-084","紧固件","拉铆螺母M4","",""],["WZ-FA-085","紧固件","按键螺钉3*12mm","",""],["WZ-FA-086","紧固件","灯条垫片","3mm内径4mm",""],["WZ-FA-087","紧固件","白垫片","","灯条使用"],["WZ-FA-088","紧固件","膨胀管","M4",""],["WZ-FA-089","紧固件","自攻自锥","","固定炭火"],["WZ-FA-090","紧固件","自攻螺丝","M4*25",""],["WZ-FA-091","紧固件","螺丝","","M4*12黑色固定80脚"],["WZ-FA-092","紧固件","螺丝钉","H40*∅5",""],["WZ-FA-093","紧固件","螺杆","","M4*18杆径3.5牙长6（淘宝）"],["WZ-FA-094","紧固件","螺杆","M4*12（塑料材质）","固定顶灯"],["WZ-FA-095","紧固件","螺杆","6*30mm",""],["WZ-FA-096","紧固件","螺杆（4*35mm带垫）","",""],["WZ-FA-097","紧固件","螺杆（铁质）","圆头M4*8","主板使用"],["WZ-FA-098","紧固件","螺母","M4（塑料材质）","固定顶灯"],["WZ-FA-099","紧固件","螺母","","内直径6mm(固定底板）"],["WZ-FA-100","紧固件","螺母￠4mm","","主板用（黑色）"],["WZ-FA-101","紧固件","螺钉","∅4*H10",""],["WZ-FA-102","紧固件","螺钉","∅5*10","固定角铁"],["WZ-FA-103","紧固件","螺钉","∅4*14","固定木架"],["WZ-FA-104","紧固件","镀锌螺丝4*10mm圆机","",""],["WZ-FA-105","紧固件","镀锌螺丝4*14mm","",""],["WZ-FA-106","紧固件","防震垫片","∅11*6.5（孔径）",""],["WZ-FA-107","紧固件","防震垫片","∅4",""],["WZ-FA-108","紧固件","风机底座减震垫片","30*15",""],["WZ-FA-109","紧固件","黑扁头自攻/只","",""],["WZ-FA-110","紧固件","黑色十字平头自攻自转螺丝","","M3.9*32（淘宝）"],["WZ-FA-111","紧固件","黑色大扁头自攻螺丝","","M4*30固定法兰"],["WZ-FA-112","紧固件","黑色螺丝","Φ4*12",""],["WZ-FA-113","紧固件","黑色螺丝","∅5*10",""],["WZ-FA-114","紧固件","￠4mm弹簧垫圈","","弹簧垫圈"],["WZ-FA-115","紧固件","￠4螺母","","黑色"],["WZ-PA-001","包装辅材","4号自封袋","",""],["WZ-PA-002","包装辅材","低压袋/只","","印刷警告语  打透气孔见工艺单"],["WZ-PA-003","包装辅材","哑光黑贴纸","464*342mm",""],["WZ-PA-004","包装辅材","哑光黑贴纸","1089*306mm",""],["WZ-PA-005","包装辅材","哑光黑贴纸","648*300mm",""],["WZ-PA-006","包装辅材","哑光黑贴纸","1226*327",""],["WZ-PA-007","包装辅材","哑光黑贴纸","500*90",""],["WZ-PA-008","包装辅材","按键贴膜","",""],["WZ-PA-009","包装辅材","接地标贴","",""],["WZ-PA-010","包装辅材","散光膜","",""],["WZ-PA-011","包装辅材","标贴","","按键周定时"],["WZ-PA-012","包装辅材","树枝","四根10号两根4号5号8号",""],["WZ-PA-013","包装辅材","树枝","4根一套*3，A2*2,A3*1,A4*2",""],["WZ-PA-014","包装辅材","树枝","大的10根，中的5根，小的5根",""],["WZ-PA-015","包装辅材","树枝","8根",""],["WZ-PA-016","包装辅材","树枝","大的12根，小的4根",""],["WZ-PA-017","包装辅材","树枝","ZF-HZC007*5,ZF-HZC004*1,ZF-HZC001*4",""],["WZ-PA-018","包装辅材","树枝","大的8根，中的4根，小的4根",""],["WZ-PA-019","包装辅材","树枝","大的12根，中的6根，小的6根",""],["WZ-PA-020","包装辅材","树枝","10号4根，1号2根，2号2根，3号2根，8号2根",""],["WZ-PA-021","包装辅材","树枝","一大三小",""],["WZ-PA-022","包装辅材","树枝","1大 3小（共2套）",""],["WZ-PA-023","包装辅材","树枝","6根",""],["WZ-PA-024","包装辅材","树枝","10根大的，2根小",""],["WZ-PA-025","包装辅材","树枝","大的8根，中的4根，小的4根(跟FRO2718-50一样）",""],["WZ-PA-026","包装辅材","水晶石","2000G （白的） ,100G水晶石红的",""],["WZ-PA-027","包装辅材","水晶石","500g",""],["WZ-PA-028","包装辅材","水晶石","600g",""],["WZ-PA-029","包装辅材","水晶石","700g",""],["WZ-PA-030","包装辅材","水晶石","400 G （白的） ,20G水晶石红的",""],["WZ-PA-031","包装辅材","水晶石","1500G （白的） ,60G水晶石红的",""],["WZ-PA-032","包装辅材","水晶石炭火底座PVC","1108*55*2mm",""],["WZ-PA-033","包装辅材","水晶石炭火底座PVC","802*55*3mm",""],["WZ-PA-034","包装辅材","水晶石炭火底座PVC","1108*55*3mm",""],["WZ-PA-035","包装辅材","水晶石炭火底座PVC","1412*55*3mm",""],["WZ-PA-036","包装辅材","水晶石炭火底座PVC","802*55*2mm",""],["WZ-PA-037","包装辅材","水晶石炭火底座PVC","650*55*2mm",""],["WZ-PA-038","包装辅材","红绳","",""],["WZ-PA-039","包装辅材","缠绕膜","","保护玻璃"],["WZ-PA-040","包装辅材","说明书","",""],["WZ-PA-041","包装辅材","贴膜","亚光黑贴410*280mm",""],["WZ-PA-042","包装辅材","铭牌","","见说明书"],["WZ-PA-043","包装辅材","铭牌标贴/套","",""],["WZ-PA-044","包装辅材","鹅卵石","6kg（黑色）",""],["WZ-PA-045","包装辅材","鹅卵石","黄鹅卵石2kg",""],["WZ-PA-046","包装辅材","黑色火山石","1.4kg",""],["WZ-PA-047","包装辅材","黑色火山石","1.5kg",""],["WZ-PA-048","包装辅材","黑色鹅卵石","6kg",""]];
+        
+        let rawData = [];
+        let filteredData = []; 
+        let currentSearchTerm = '';
+
+        function initData() {
+            const storedData = localStorage.getItem(STORAGE_KEY);
+            if (storedData) {
+                try { rawData = JSON.parse(storedData); } 
+                catch(e) { rawData = JSON.parse(JSON.stringify(originalData)); }
+            } else {
+                rawData = JSON.parse(JSON.stringify(originalData));
+            }
+            filteredData = [...rawData];
+        }
+
+        function autoSave() { localStorage.setItem(STORAGE_KEY, JSON.stringify(rawData)); }
+        function forceSave() { autoSave(); showToast('✅ 数据已保存至本地！'); }
+
+        let isAdmin = false;
+        let isLightMode = false;
+        let pieChart, barChart;
+
+        function toggleTheme() {
+            const body = document.body;
+            isLightMode = !isLightMode;
+            if (isLightMode) {
+                body.classList.add('light-theme');
+                document.getElementById('theme-btn').innerText = '🌙 深色';
+            } else {
+                body.classList.remove('light-theme');
+                document.getElementById('theme-btn').innerText = '☀️ 浅色';
+            }
+            if(pieChart) pieChart.dispose();
+            if(barChart) barChart.dispose();
+            initCharts();
+            updateDashboard();
+        }
+
+        function initCharts() {
+            const themeStr = isLightMode ? 'light' : 'dark';
+            pieChart = echarts.init(document.getElementById('pie-chart'), themeStr);
+            barChart = echarts.init(document.getElementById('bar-chart'), themeStr);
+            pieChart.setOption({ backgroundColor: 'transparent' });
+            barChart.setOption({ backgroundColor: 'transparent' });
+
+            // ================= V7 新增核心功能：图表反向联动过滤表格 =================
+            pieChart.on('click', function(params) {
+                document.getElementById('search-input').value = params.name;
+                handleSearch();
+                showToast('🔗 已联动筛选分类：' + params.name);
+            });
+
+            barChart.on('click', function(params) {
+                document.getElementById('search-input').value = params.name;
+                handleSearch();
+                showToast('🔗 已联动筛选分类：' + params.name);
+            });
+        }
+
+        window.onload = () => {
+            initData();
+            initCharts();
+            window.addEventListener('resize', () => { 
+                if(pieChart) pieChart.resize(); 
+                if(barChart) barChart.resize(); 
+            });
+            refreshSystem();
+            showToast('系统就绪，支持图表点击联动筛选');
+        };
+
+        function showToast(msg) {
+            const toast = document.getElementById('sys-toast');
+            toast.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function handleSearch() {
+            currentSearchTerm = document.getElementById('search-input').value.trim().toLowerCase();
+            if (!currentSearchTerm) {
+                filteredData = [...rawData];
+            } else {
+                filteredData = rawData.filter(row => {
+                    return row.some(cell => String(cell || '').toLowerCase().includes(currentSearchTerm));
+                });
+            }
+            refreshSystem();
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            handleSearch();
+            showToast('🔄 筛选条件已重置，显示全量数据');
+        }
+
+        function highlightText(text) {
+            if (!currentSearchTerm || !text) return text;
+            const strText = String(text);
+            const regex = new RegExp(`(${currentSearchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return strText.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        function refreshSystem() {
+            renderTable();
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            let stats = {};
+            let specCount = 0, remarkCount = 0;
+
+            filteredData.forEach(row => {
+                let cat = row[1] || '未分类';
+                if (!stats[cat]) stats[cat] = { total: 0, spec: 0, remark: 0 };
+                stats[cat].total++;
+                if (row[3] && row[3].trim() !== '') { stats[cat].spec++; specCount++; }
+                if (row[4] && row[4].trim() !== '') { stats[cat].remark++; remarkCount++; }
+            });
+
+            const totalRows = filteredData.length;
+            const categories = Object.keys(stats);
+
+            document.getElementById('search-stats').innerText = `检索: ${totalRows} 项`;
+            document.getElementById('val-total').innerText = totalRows;
+            document.getElementById('val-cat').innerText = categories.length;
+            document.getElementById('val-spec').innerText = totalRows ? ((specCount/totalRows)*100).toFixed(1) + '%' : '0%';
+            document.getElementById('val-remark').innerText = totalRows ? ((remarkCount/totalRows)*100).toFixed(1) + '%' : '0%';
+
+            const textColor = isLightMode ? '#374151' : '#e2e8f0';
+            const isMobile = window.innerWidth <= 768;
+
+            pieChart.setOption({
+                title: { text: '物料分类占比 (点击联动)', left: 'center', textStyle: { color: textColor, fontSize: 14 } },
+                tooltip: { trigger: 'item' },
+                // V7 修复：禁用 ECharts 默认的图例隐藏功能 (selectedMode: false)，防止用户误点导致图表变空
+                legend: { show: true, bottom: 0, selectedMode: false, textStyle: { color: textColor, fontSize: 10 } },
+                series: [{
+                    type: 'pie', radius: isMobile ? ['25%', '50%'] : ['40%', '65%'],
+                    center: ['50%', '45%'],
+                    itemStyle: { borderRadius: 8, borderColor: isLightMode ? '#fff' : '#151b2b', borderWidth: 2 },
+                    data: categories.map(c => ({ name: c, value: stats[c].total }))
+                }]
+            });
+
+            barChart.setOption({
+                title: { text: '属性完善状态 (点击联动)', textStyle: { color: textColor, fontSize: 14 } },
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                // V7 修复：同样禁用柱状图的图例隐藏功能
+                legend: { selectedMode: false, data: ['SKU总量', '有规格', '有备注'], top: 25, itemWidth: 10, itemHeight: 10, textStyle: { color: textColor, fontSize: 10 } },
+                grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                xAxis: { type: 'category', data: categories, axisLabel: { color: textColor, interval: 0, rotate: isMobile ? 30 : 0, fontSize: 10 } },
+                yAxis: { type: 'value', axisLabel: { color: textColor }, splitLine: { lineStyle: { color: isLightMode ? '#e5e7eb' : '#2a3441' } } },
+                series: [
+                    { name: 'SKU总量', type: 'bar', data: categories.map(c => stats[c].total), itemStyle: { color: isLightMode ? '#3b82f6' : '#00f2ff' } },
+                    { name: '有规格', type: 'bar', data: categories.map(c => stats[c].spec), itemStyle: { color: '#10b981' } },
+                    { name: '有备注', type: 'bar', data: categories.map(c => stats[c].remark), itemStyle: { color: '#f59e0b' } }
+                ]
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            
+            filteredData.forEach((row) => {
+                const realIndex = rawData.indexOf(row);
+                const tr = document.createElement('tr');
+                let html = '';
+                row.forEach((cell, colIndex) => {
+                    let displayContent = highlightText(cell);
+                    if (isAdmin) {
+                        html += `<td class="editable" contenteditable="true" 
+                                    onfocus="this.innerText=rawData[${realIndex}][${colIndex}]" 
+                                    onblur="updateCell(${realIndex}, ${colIndex}, this.innerText)">${displayContent}</td>`;
+                    } else {
+                        html += `<td>${displayContent}</td>`;
+                    }
+                });
+                
+                if (isAdmin) {
+                    html += `<td class="admin-col"><span class="del-btn" onclick="deleteRow(${realIndex})">删除</span></td>`;
+                } else {
+                    html += `<td class="admin-col" style="display:none;"></td>`;
+                }
+                
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            });
+            
+            const adminCols = document.querySelectorAll('.admin-col');
+            adminCols.forEach(col => col.style.display = isAdmin ? 'table-cell' : 'none');
+        }
+
+        function updateCell(realIndex, colIndex, value) {
+            const safeVal = value.trim();
+            if (rawData[realIndex][colIndex] !== safeVal) {
+                rawData[realIndex][colIndex] = safeVal;
+                autoSave(); 
+                handleSearch(); 
+            } else {
+                renderTable();
+            }
+        }
+
+        function addRow() {
+            const newRow = [`WZ-NEW-${Math.floor(Math.random()*10000)}`, '电气件', '新入库物料', '', ''];
+            rawData.unshift(newRow);
+            autoSave();
+            if (currentSearchTerm) { clearSearch(); }
+            else { refreshSystem(); }
+            document.querySelector('.table-wrapper').scrollTop = 0;
+            showToast('➕ 新物料已生成在表格顶部');
+        }
+
+        function deleteRow(realIndex) {
+            if (confirm('警告：此操作不可逆，确定销毁此条数据吗？')) {
+                rawData.splice(realIndex, 1);
+                autoSave();
+                handleSearch();
+                showToast('🗑️ 数据已被销毁');
+            }
+        }
+
+        function triggerDownload(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportToCSV() {
+            let csvContent = "\uFEFF物料编码,分类,物料名称,规格/参数,备注\n";
+            filteredData.forEach(row => {
+                let formattedRow = row.map(cell => {
+                    let safeCell = String(cell || '').replace(/"/g, '""');
+                    if (safeCell.includes(',') || safeCell.includes('\n') || safeCell.includes('"')) return `"${safeCell}"`;
+                    return safeCell;
+                });
+                csvContent += formattedRow.join(',') + "\n";
+            });
+            triggerDownload(csvContent, '旺州仓库_报表.csv', 'text/csv;charset=utf-8;');
+            showToast('⬇️ Excel 开始下载');
+        }
+
+        function exportToMD() {
+            let mdContent = `# 旺州仓库物料数据\n\n`;
+            mdContent += `> 共计 ${filteredData.length} 条记录\n\n`;
+            mdContent += "| 物料编码 | 分类 | 物料名称 | 规格/参数 | 备注 |\n|---|---|---|---|---|\n";
+            filteredData.forEach(row => {
+                let formattedRow = row.map(cell => String(cell || '').replace(/\|/g, '&#124;').replace(/\n/g, '<br>'));
+                mdContent += `| ${formattedRow.join(' | ')} |\n`;
+            });
+            triggerDownload(mdContent, '旺州仓库_报表.md', 'text/markdown;charset=utf-8;');
+            showToast('⬇️ Markdown 开始下载');
+        }
+
+        function showLogin() { document.getElementById('login-modal').style.display = 'flex'; document.getElementById('login-err').style.display = 'none'; }
+        function hideLogin() { document.getElementById('login-modal').style.display = 'none'; }
+        
+        function verifyLogin() {
+            if (document.getElementById('username').value === '旺州仓库' && document.getElementById('password').value === '2530049443') {
+                isAdmin = true;
+                hideLogin();
+                document.getElementById('user-status').innerHTML = '<span style="color:var(--danger)">编辑已开启</span>';
+                document.getElementById('user-status').style.color = 'var(--accent)';
+                document.getElementById('login-btn').style.display = 'none';
+                document.getElementById('logout-btn').style.display = 'flex';
+                document.getElementById('add-btn').style.display = 'flex';
+                document.getElementById('save-btn').style.display = 'flex';
+                document.getElementById('edit-hint').style.display = 'inline';
+                renderTable(); 
+                showToast('🔑 管理员授权成功');
+            } else {
+                document.getElementById('login-err').style.display = 'block';
+            }
+        }
+
+        function logout() {
+            isAdmin = false;
+            document.getElementById('user-status').innerText = '访客模式';
+            document.getElementById('user-status').style.color = 'var(--text-sub)';
+            document.getElementById('login-btn').style.display = 'flex';
+            document.getElementById('logout-btn').style.display = 'none';
+            document.getElementById('add-btn').style.display = 'none';
+            document.getElementById('save-btn').style.display = 'none';
+            document.getElementById('edit-hint').style.display = 'none';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            renderTable(); 
+            showToast('🔒 已退出管理员');
+        }
+    </script>
+</body>
+</html>
